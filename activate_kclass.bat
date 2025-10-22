@@ -1,0 +1,1 @@
+call D:\LANG2509\LangWork\.venv\Scripts\activate.bat
