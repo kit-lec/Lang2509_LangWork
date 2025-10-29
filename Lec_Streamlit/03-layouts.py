@@ -42,7 +42,50 @@ with st.empty():
     st.write('고양이')
     st.write("강아지")  # 오직 한개의 요소만 그려진다!
 
+# ────────────────────────────────────────────────────────
+# sidebar 가 있는 레이아웃 만들기
+#  공식: https://docs.streamlit.io/develop/api-reference/layout/st.sidebar
 
+st.title("sidebar")
+
+# 첫번째 방법 (비추)
+sbar = st.sidebar
+sbar.title('sidebar title1')
+sbar.text_input('AAA')
+st.sidebar.text_input('BBB')
+
+# 두번째 방법 with 사용
+with st.sidebar:
+    st.title('sidebar title2')
+    st.text_input('CCC')
+
+# -----------------------------------
+# tab
+st.title("tabs")
+tab_one, tab_two, tab_three = st.tabs(["One", "Two", "Three"])
+
+with tab_one:
+    st.write('alpha')
+
+with tab_two:
+    st.write('bravo')
+
+with tab_three:
+    st.write('charlie')
+
+# --------------------------------------
+# columns
+# 
+st.title('columns')
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(label='달러USD', value='1,430원', delta='+23.00원')
+
+with col2:
+    st.metric(label="일본JPY(100엔)", value="958.63 원", delta="-7.44 원")
+with col3: 
+    st.metric(label="유럽연합EUR", value="1,335.82 원", delta="11.44 원")
 
 
 
