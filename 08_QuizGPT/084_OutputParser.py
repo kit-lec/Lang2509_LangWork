@@ -36,9 +36,6 @@ class JsonOutputParser(BaseOutputParser):
     def parse(self, text):
         # 응답의 앞과 뒤의 문자열 제거
         text = text.replace("```json", "").replace("```", "")
-
-        print('✅', text)
-
         return json.loads(text)
 
 output_parser = JsonOutputParser()
@@ -237,19 +234,6 @@ def split_file(file):
 def format_docs(docs):
     return "\n\n".join(document.page_content for document in docs)
 
-
-@st.cache_resource(show_spinner="Making quiz...")
-def run_quiz_chain(docs):
-    chain = {"context": invoke_question_chain} | formatting_chain | output_parser
-    return chain.invoke(docs)
-
-@st.cache_resource(show_spinner="Searching Wikipedia...")
-def wiki_search(topic):
-    retriever = WikipediaRetriever(top_k_results=5)
-    docs = retriever.invoke(topic)
-    return docs
-
-
 # ────────────────────────────────────────
 # ⭕ Streamlit 로직
 # ────────────────────────────────────────
@@ -283,7 +267,10 @@ with st.sidebar:
     else:
         topic = st.text_input("Search Wikipedia...")
         if topic:
-            docs = wiki_search(topic)
+            retriever = WikipediaRetriever(top_k_results=5)
+
+            with st.status("Searching Wikipedia..."):
+                docs = retriever.invoke(topic)
 
 
 if not docs:
@@ -297,32 +284,14 @@ if not docs:
     """
     )
 else:
-    response = run_quiz_chain(docs)
+    start = st.button("Generate Quiz")
+    if start:
+        # question_response = invoke_question_chain(docs)        
+        # formatting_response = formatting_chain.invoke({"context": question_response.content})
 
-    # form 작성
-    with st.form(key="questions_form"):
-        # 각각의 질문들
-        for key, question in enumerate(response['questions']):
-            st.write(f'Q{key + 1}', question['question'])  # 일단 질문만 출력
-            value = st.radio(label="Select an option",
-                     options=[answer['answer'] for answer in question['answers']],
-                     index=None,  # 기본 체크 제거
-                     key=key)  # 고유한 key 값을 radio 에 제공
-            
-            # st.write(value)  # 확인. 선택한 radio 값 
-            # st.success(value)
-            # st.error(value)
-            # st.json(question['answers'])  # 확인용 object -> JSON 출력
-            # st.json({'answer': value, 'correct': True})  # 답변 JSON
-
-            # 정답판정
-            if {'answer': value, 'correct': True} in question['answers']:  # 'answers' 안에 있다면 정답인것이다!
-                st.success("Correct!")
-            elif value is not None:  # 오답을 선택한 것만 Wrong
-                st.error("Wrong!")
-
-        button = st.form_submit_button()
-
+        chain = {"context": invoke_question_chain} | formatting_chain | output_parser
+        response = chain.invoke(docs)
+        st.write(response) # 확인
 
         
 
