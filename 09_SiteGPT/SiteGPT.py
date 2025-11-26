@@ -52,6 +52,19 @@ answers_prompt = ChatPromptTemplate.from_template("""
     Question: {question}
 """)
 
+choose_prompt = ChatPromptTemplate.from_messages([
+    ('system', '''
+            Use ONLY the following pre-existing answers to answer the user's question.
+
+            Use the answers that have the highest score (more helpful) and favor the most recent ones.
+
+            Cite sources and return the sources as it is. Do not change them. Keep it as a link
+
+            Answers: {answers}
+     '''),
+    ("human", "{question}"),
+])
+
 
 def get_answers(inputs):
     docs = inputs['docs']
@@ -59,16 +72,48 @@ def get_answers(inputs):
 
     # 위 모든 documente 를 처리해줄 chain 
     answers_chain = answers_prompt | llm
-    answers = []
-    for doc in docs:
-        result = answers_chain.invoke({
-            "question": question,
-            "context": doc.page_content,
-        })
-        answers.append(result.content)
 
-    st.write(answers) # 확인용!
 
+    # 다음과 같은 형식으로 리턴해볼거다
+    # {
+    #     answer: from the llm,
+    #     source: doc.metadata   <- Document 의 meta data 포함
+    #     date: doc.lastmod  <- Document 의 마지막 수정날짜 정보도 필요.
+    # }
+
+    return {
+        "question": question,
+        "answers": [
+            {
+                "answer": answers_chain.invoke({
+                                "question": question,
+                                "context": doc.page_content,
+                            }).content,
+                "source": doc.metadata['source'],
+                "date": doc.metadata['lastmod'],
+            }
+            
+            for doc in docs
+        ]
+    }
+
+# 입력은 '모든 answer' 와  '사용자 question'
+# 출력은 선택된 '최종 answer'.
+def choose_answer(inputs):
+    answers = inputs['answers']
+    question = inputs['question']
+    choose_chain = choose_prompt | llm
+
+    # answers 가 dict 의 list 다. 이를 string 으로 만들어 chain 호출하자.
+    condensed = "\n\n".join(
+        f"{answer['answer']}\nSource:{answer['source']}\nDate:{answer['date']}\n"
+        for answer in answers
+    )
+
+    return choose_chain.invoke({
+        "question": question,
+        "answers": condensed,
+    })
 
 # ────────────────────────────────────────
 # 🍇 file load & cache
@@ -149,8 +194,7 @@ if url:
             st.error("Please write down a sitemap URL")
     else:
         retriever = load_website(url)
-        # docs = retriever.invoke("What is the price of Mistral AI models?")
-        # docs  # 확인       
+        query = st.text_input("Ask a question to the website.")
 
         # Map Re-Rank Chain 만들기. 두개의 chain 이 필요하다
         # 1.첫번째 chain
@@ -158,10 +202,20 @@ if url:
         # 2.두번째 chain
         #   모든 답변을 가진 마지막 시점에 실행된다
         #   점수가 제일 높고 + 가장 최신 정보를 담고 있는 답변들 고른다
+        if query:
+            chain = {
+                "docs": retriever,
+                "question": RunnablePassthrough(),
+            } | RunnableLambda(get_answers) | RunnableLambda(choose_answer)
 
-        chain = {
-            "docs": retriever,
-            "question": RunnablePassthrough(),
-        } | RunnableLambda(get_answers)
+            result = chain.invoke(query)
+            st.markdown(result.content)
 
-        chain.invoke("What is the price of Mistral AI models?")
+
+
+
+
+
+
+
+
