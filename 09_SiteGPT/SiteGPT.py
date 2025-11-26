@@ -151,14 +151,33 @@ def load_website(url):
         # ],
         parsing_function=parse_page,
     )
-    loader.max_depth = 1    # 기본값 10
+    # loader.max_depth = 1    # 기본값 10
     loader.headers = {'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36'}
     docs = loader.load_and_split(text_splitter=splitter)
 
-    vector_store = FAISS.from_documents(
-        documents=docs,
-        embedding=OpenAIEmbeddings(),
-    )
+# BadRequestError: Error code: 400 - {'error': {'message': 'Requested 329822 tokens, max
+# 300000 tokens per request', 'type': 'max_tokens_per_request', 'param': None, 'code':
+# 'max_tokens_per_request'}}
+
+    # Document 들을 특정 크기 (batch size) 만큼 나누어 embedding 후 . 결과를 병합.
+    batch_size = 100
+
+    substores = []  # vector store 들의 list
+    
+    for i in range(0, len(docs), batch_size):
+        chunk = docs[i: i + batch_size]  # batch_size 만큼씩 embedding 을 할거다
+
+        vector_store = FAISS.from_documents(
+            documents=chunk,
+            embedding=OpenAIEmbeddings(),
+        )
+
+        substores.append(vector_store)
+
+    # Vector store 들 병합
+    vector_store = substores[0]
+    for store in substores[1:]:
+        vector_store.merge_from(store)
 
     return vector_store.as_retriever()
 
