@@ -131,31 +131,23 @@ with st.sidebar:
     )
 
 if video:
-    with st.status("Loading video...") as status:
+    with st.status("Loading video..."):
         video_content = video.read()
         video_path = os.path.join(file_dir, rf'.cache/{video.name}')
         audio_path = video_path.replace("mp4", "mp3")
         with open(video_path, 'wb') as f:
             f.write(video_content)
 
-        # video -> audio 추출
-        status.update(label="Extracting audio...")
+    # video -> audio 추출
+    with st.status("Extracting audio..."):
         extract_audio_from_video(video_path)
 
-        # 오디오 파일 쪼개기
-        chunks_folder = os.path.join(file_dir, r'./.cache/chunks')
-        status.update(label="Cutting audio segments...")
+    # 오디오 파일 쪼개기
+    chunks_folder = os.path.join(file_dir, r'./.cache/chunks')
+    with st.status("Cutting audio segments..."):
         cut_audio_in_chunks(audio_path, 10, chunks_folder)
 
-        # 녹취록 파일 생성
-        transcript_path = video_path.replace("mp4", "txt")
-        status.update(label="Transcripting Audio...")
+    # 녹취록 파일 생성
+    transcript_path = video_path.replace("mp4", "txt")
+    with st.status("Transcripting Audio..."):
         transcribe_chunks(chunks_folder, transcript_path)
-
-
-    # 3개의 tab
-    transcript_tab, summary_tab, qa_tab = st.tabs(["Transcript", "Summary", "Q&A"])
-
-    with transcript_tab:
-        with open(transcript_path, 'r') as file:
-            st.write(file.read())
