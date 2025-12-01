@@ -159,3 +159,82 @@ if video:
     with transcript_tab:
         with open(transcript_path, 'r') as file:
             st.write(file.read())
+
+    with summary_tab:
+        start = st.button("Generate summary")
+
+        # ↓ 2개의 chain 을 시작
+        #  첫번째 chain : 첫번째 document 를 요약 (summarize)
+        #  두번째 chain : 다른 모든 document 를 요약
+        #      LLM 에게 '이전의 summary' 와 새 context 를 사용하여 새로운 summary 를 만들게 함 (refine!).
+        if start:
+            loader = TextLoader(transcript_path)      
+            splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+                chunk_size= 800,
+                chunk_overlap=100,
+            )    
+
+            docs = loader.load_and_split(text_splitter=splitter)
+
+            # 🟢첫번째 chain: 첫번째 Document 요약
+            first_summary_prompt = ChatPromptTemplate.from_template(
+                # 정확한 요약 (concise summary) 를 위한 프롬프트
+                """
+                Write a concise summary of the following:
+                "{text}"
+                CONCISE SUMMARY:                
+            """
+            )
+
+            first_summary_chain = first_summary_prompt | llm | StrOutputParser()
+
+            summary = first_summary_chain.invoke({"text": docs[0].page_content})
+
+            # 🟢나머지 Document 들을 요약할 chain
+            refine_prompt = ChatPromptTemplate.from_template(
+                """
+                Your job is to produce a final summary.
+                We have provided an existing summary up to a certain point: {existing_summary}
+                We have the opportunity to refine the existing summary (only if needed) with some more context below.
+                ------------
+                {context}
+                ------------
+                Please refine the existing summary using the additional context, if necessary.
+                If the additional context does not require any changes to the existing summary, **return the existing summary exactly as it is.**
+                Do NOT explain your decision. Just output the final summary.                
+                """
+            )
+
+            refine_chain = refine_prompt | llm | StrOutputParser()
+
+            # 나머지 모든 Document(들) 에 대해
+            with st.status("Summarizing...") as status:
+                for i, doc in enumerate(docs[1:]):
+                    status.update(label=f'Processing document {i+1}/{len(docs)-1}')
+
+                    # 기존의 summary 를 refine!
+                    summary = refine_chain.invoke({
+                        "existing_summary": summary,  # 이전 summary 와
+                        "context": doc.page_content,  # 이번 Document 사용.
+                    })
+
+                    st.write("🔷 " + summary)  # 중간단계 요약 누적
+
+            st.write("✅ " + summary) # 최종 요약본
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
