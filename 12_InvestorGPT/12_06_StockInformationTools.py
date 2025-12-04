@@ -1,38 +1,25 @@
+from langchain_openai.chat_models.base import ChatOpenAI
+from langchain.agents.initialize import initialize_agent
+from langchain.agents.agent_types import AgentType
+from langchain_core.tools.simple import Tool
+from langchain_core.tools.base import BaseTool
+
+from pydantic import BaseModel, Field
+from typing import Any, Type
+
+from langchain_community.utilities.duckduckgo_search import DuckDuckGoSearchAPIWrapper
+
 import os
-import time
+import requests
+
 from dotenv import load_dotenv
-
 load_dotenv()
-
-print(f'✅ {os.path.basename( __file__ )} 실행됨 {time.strftime('%Y-%m-%d %H:%M:%S')}')  # 실행파일명, 현재시간출력
-print(f'\tOPENAI_API_KEY={os.getenv("OPENAI_API_KEY")[:20]}...') # OPENAI_API_KEY 필요!
 alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
 print(f'\tALPHA_VANTAGE_API_KEY={alpha_vantage_api_key[:5]}...')
 
-#─────────────────────────────────────────────────────────────────────────────────────────
-import streamlit as st
 
-import requests
-from langchain_core.messages.system import SystemMessage
-from langchain_openai.chat_models.base import ChatOpenAI
 
-from langchain.agents.initialize import initialize_agent
-from langchain.agents.agent_types import AgentType
-from langchain_core.tools.base import BaseTool
-from pydantic import BaseModel, Field
-from typing import Type
-from langchain_community.utilities.duckduckgo_search import DuckDuckGoSearchAPIWrapper
-
-# ────────────────────────────────────────
-# 🎃 LLM 로직
-# ────────────────────────────────────────
-llm = ChatOpenAI(
-    temperature=0.1, 
-)
-
-# ────────────────────────────────────────
-# ♒ Tools & Agent
-# ────────────────────────────────────────
+llm = ChatOpenAI(temperature=0.1)
 
 # 회사 심볼 tool
 class StockMarketSymbolSearchToolArgsSchema(BaseModel):
@@ -106,7 +93,7 @@ class CompanyStockPerformanceTool(BaseTool):
 
     def _run(self, symbol):
         response = requests.get(
-            f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={symbol}&apikey={alpha_vantage_api_key}"
+            f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={alpha_vantage_api_key}"
         )
         return response.json()
 
@@ -122,50 +109,8 @@ agent = initialize_agent(
         CompanyIncomeStatementTool(),
         CompanyStockPerformanceTool(),
     ],
-    agent_kwargs={
-        "system_message": SystemMessage(
-            content="""
-            You are a hedge fund manager.
-           
-            You evaluate a company and provide your opinion and reasons why the stock is a buy or not.
-           
-            Consider the performance of a stock, the company overview and the company income statement.
-           
-            Be assertive in your judgement and recommend the stock or advise the user against it.
-        """
-        ),
-    },
 )
 
+prompt = "Give me information on Cloudflare's stock, considering its financials, income statements and stock performance and help me analyze if it's a potential good investment."
 
-
-
-# ────────────────────────────────────────
-# 🍇 file load & cache
-# ────────────────────────────────────────
-
-
-
-# ────────────────────────────────────────
-# ⭕ Streamlit 로직
-# ────────────────────────────────────────
-st.set_page_config(
-    page_title="InvestorGPT",
-    page_icon="💼",
-)
-
-st.markdown(
-    """
-    # InvestorGPT
-            
-    Welcome to InvestorGPT.
-            
-    Write down the name of a company and our Agent will do the research for you.
-"""
-)
-
-company = st.text_input("Write the name of the company you are interested on.")
-
-if company:
-    result = agent.invoke(company)
-    st.write(result['output']) # 확인용
+agent.invoke(prompt)
